@@ -3,6 +3,7 @@ import requests
 import re
 import pytz
 import json
+import os
 import configparser
 from datetime import datetime
 
@@ -34,9 +35,14 @@ class LOF:
         year, mon, day, hour, minu = now.tm_year, now.tm_mon, now.tm_mday, now.tm_hour, now.tm_min
         if now.tm_hour >= 15:
             # Next day
-            if now.tm_mon == 12:
-                if now.tm_wday == 31 or now.tm_wday >= 4 and now.tm_mday + (7 - now.tm_wday) > 31:
-
+            hour, minu = 9, 30
+            if now.tm_mon == 12 and now.tm_mday == 31:
+                year, mon, day = year + 1, 1, 1
+            else:
+                if now.tm_mday == 31 or now.tm_mday == 30 and now.tm_mon in [4, 6, 9, 11] or now.tm_mon == 2 and now.tm_mday >= 28:
+                    mon, day = now.tm_mon + 1, 1
+                else:
+                    day += 1
         else:
             # Today
             if now.tm_hour < 9:
@@ -46,56 +52,42 @@ class LOF:
                     minu = 30
                 else:
                     hour, minu = hour + 1, 0
-
-
-
         
-        # Year
-            
-        now = datetime.now(tz=pytz.timezone("Asia/Shanghai"))
-        d = datetime(now.year, now.month, now.day+10, now.hour, 2)
-        print(d)
+        return time.mktime(time.strptime(" ".join(map(str, [year, mon, day, hour, minu])), "%Y %m %d %H %M"))
 
-    def getInfo(self, id):
+    def getInfo(self):
         r = self.session.get(self.urlLOF + str(int(time.time())*1000))
         if r.status_code == 200:
-            r = r.json()
+            return r.text
         else:
             return
-        rows = [row["cell"] for row in r["rows"] if int(row["id"]) in self.LOFList]
+    
+    def save(self, t, text):
+        t = time.localtime(t)
+        
+        d = "-".join(map(str, [t.tm_year, t.tm_mon]))
+        f = "-".join(map(str, [t.tm_mday, t.tm_hour, t.tm_min]))
+        if not os.path.exists(d):
+            os.mkdir(d)
 
-        res = []
-        for row in rows:
-            discount_rt = float(row["discount_rt"][:-1])
-            if discount_rt >= self.disLimit or discount_rt <= self.preLimit:
-                s = {}
-                for key, value in self.content.items():
-                    s[key] = row[value] if value != "fund_id" else "".join(["[", row[value], "](", self.urlBase, row[value], ")"])
-                res.append(s)
-        return res
-
-    def md(self, info):
-        if not info: return
-        res = ["| " + " | ".join(list(info[0])) + " |"]
-        res.append("| " + " :---: | " * (len(info[0]) - 1) + " :---: |")
-        for i in info:
-            res.append("| " + " | ".join(list(i.values())) + " |")
-        res = "\n".join(res)
-        return res
+        with open(os.path.join(d, f), "w") as outFile:
+            outFile.write(text)
 
     def message(self, key, title, body):
         msg_url = "https://sc.ftqq.com/{}.send?text={}&desp={}".format(key, title, body)
         requests.get(msg_url)
 
     def main(self):
-        info = self.getInfo(id)
-        if len(info):
-            md = self.md(info)
-            self.message(self.apiKey, "LOF-溢价: " + datetime.now(tz=pytz.timezone("Asia/Shanghai")).strftime("%m-%d %H:%M"), md)
+        while True:
+            nt = self.nextTime()
+            print("Next time: " + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(nt)))
+            time.sleep(nt - time.time())
+
+            text = self.getInfo()
+            if text:
+                self.save(nt, text)
 
 
 if __name__ == "__main__":
     lof = LOF()
-    # lof.main()
-    lof.nextTime()
-    pass
+    lof.main()
