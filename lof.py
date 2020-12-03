@@ -48,7 +48,7 @@ class LOF:
             if now.tm_hour < 9:
                 hour, minu = 9, 30
             else:
-                if now.min < 30:
+                if now.tm_min < 30:
                     minu = 30
                 else:
                     hour, minu = hour + 1, 0
