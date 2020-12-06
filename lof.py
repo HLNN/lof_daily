@@ -33,7 +33,7 @@ class LOF:
         now = time.localtime()
 
         year, mon, day, hour, minu = now.tm_year, now.tm_mon, now.tm_mday, now.tm_hour, now.tm_min
-        if now.tm_hour >= 15:
+        if now.tm_wday > 5 or now.tm_hour >= 15:
             # Next day
             hour, minu = 9, 30
             if now.tm_mon == 12 and now.tm_mday == 31:
